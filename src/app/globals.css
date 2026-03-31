@@ -1,26 +1,90 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --surface: #f5f8ff;
+  --ink: #0f172a;
+  --card: #ffffffcc;
+  --line: #d8e3f1;
+  --brand: #0059b8;
+  --brand-ink: #ffffff;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--surface);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-dm-sans);
+  --font-heading: var(--font-space-grotesk);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-dm-sans), sans-serif;
+}
+
+.font-heading {
+  font-family: var(--font-space-grotesk), sans-serif;
+}
+
+.card {
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: 1rem;
+  box-shadow: 0 20px 50px -36px rgba(16, 24, 40, 0.4);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  padding: 0.62rem 1rem;
+  font-weight: 600;
+  transition: all 180ms ease;
+}
+
+.btn-primary {
+  border: 1px solid color-mix(in srgb, var(--brand), #ffffff 20%);
+  background: linear-gradient(120deg, var(--brand), #0072db);
+  color: var(--brand-ink);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px -14px rgba(0, 89, 184, 0.8);
+}
+
+.btn-ghost {
+  border: 1px solid var(--line);
+  background: #ffffffad;
+}
+
+.btn-ghost:hover {
+  background: #fff;
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0.65rem 0.8rem;
+  outline: none;
+}
+
+.input:focus {
+  border-color: color-mix(in srgb, var(--brand), #ffffff 65%);
+  box-shadow: 0 0 0 3px rgba(0, 89, 184, 0.1);
+}
+
+.badge {
+  display: inline-flex;
+  border: 1px solid #c9dbef;
+  border-radius: 999px;
+  background: #e9f4ff;
+  color: #0f4c91;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.7rem;
 }
