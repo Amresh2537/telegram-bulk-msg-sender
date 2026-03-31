@@ -88,3 +88,35 @@ body {
   font-weight: 700;
   padding: 0.25rem 0.7rem;
 }
+
+.dashboard-bg {
+  background-image:
+    radial-gradient(circle at 12% 10%, #d7e9ff 0, transparent 38%),
+    radial-gradient(circle at 92% 14%, #ffe8c7 0, transparent 34%),
+    linear-gradient(180deg, #f6f9ff 0%, #fffefb 72%);
+}
+
+.dashboard-aside {
+  width: 290px;
+  height: fit-content;
+  position: sticky;
+  top: 1.5rem;
+}
+
+@media (max-width: 1023px) {
+  .dashboard-aside {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(290px, 92vw);
+    border-radius: 0;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+    overflow-y: auto;
+  }
+
+  .dashboard-aside.is-open {
+    transform: translateX(0);
+  }
+}

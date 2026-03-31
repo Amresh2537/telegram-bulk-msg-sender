@@ -2,7 +2,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Campaign from "@/models/Campaign";
-import { parseChatIds } from "@/lib/helpers";
+import Contact from "@/models/Contact";
+import {
+  isMobileRecipient,
+  normalizePhoneNumber,
+  parseRecipients,
+} from "@/lib/helpers";
 import { delay, sendTelegramMessage } from "@/lib/telegram";
 
 const MIN_RATE_DELAY_MS = 300;
@@ -22,18 +27,23 @@ export async function POST(request) {
   const body = await request.json();
   const botToken = body?.botToken?.trim();
   const message = body?.message?.trim();
-  const chatIds = parseChatIds(body?.chatIds);
+  const recipients = parseRecipients(body?.recipients ?? body?.chatIds);
   const requestedDelay = Number(body?.delayMs) || 700;
   const delayMs = Math.min(Math.max(requestedDelay, MIN_RATE_DELAY_MS), MAX_RATE_DELAY_MS);
 
-  if (!botToken || !message || chatIds.length === 0) {
+  if (!botToken || !message || recipients.length === 0) {
     return Response.json(
-      { error: "botToken, message, and chatIds are required." },
+      { error: "botToken, message, and recipients are required." },
       { status: 400 }
     );
   }
 
   await connectDB();
+
+  const contacts = await Contact.find({ userId: session.user.id }).lean();
+  const contactMap = new Map(
+    contacts.map((contact) => [normalizePhoneNumber(contact.phone), contact.chatId])
+  );
 
   const encoder = new TextEncoder();
 
@@ -44,16 +54,28 @@ export async function POST(request) {
       const results = [];
 
       try {
-        for (let index = 0; index < chatIds.length; index += 1) {
-          const chatId = chatIds[index];
+        for (let index = 0; index < recipients.length; index += 1) {
+          const recipient = recipients[index];
+          const normalizedPhone = normalizePhoneNumber(recipient);
+          const shouldResolvePhone = isMobileRecipient(normalizedPhone);
+          const chatId = shouldResolvePhone
+            ? contactMap.get(normalizedPhone)
+            : recipient;
 
           try {
+            if (!chatId) {
+              throw new Error(
+                `No mapped chat ID found for ${normalizedPhone}. Add this number in Contacts.`
+              );
+            }
+
             await sendTelegramMessage(botToken, chatId, message);
             successCount += 1;
-            results.push({ chatId, success: true, error: null });
+            results.push({ recipient, chatId, success: true, error: null });
           } catch (error) {
             failedCount += 1;
             results.push({
+              recipient,
               chatId,
               success: false,
               error: error.message || "Failed to send message",
@@ -63,14 +85,14 @@ export async function POST(request) {
           const progressEvent = {
             type: "progress",
             processed: index + 1,
-            total: chatIds.length,
+            total: recipients.length,
             successCount,
             failedCount,
             current: results.at(-1),
           };
           controller.enqueue(encoder.encode(sse(progressEvent)));
 
-          if (index < chatIds.length - 1) {
+          if (index < recipients.length - 1) {
             await delay(delayMs);
           }
         }
@@ -78,7 +100,7 @@ export async function POST(request) {
         await Campaign.create({
           userId: session.user.id,
           message,
-          totalUsers: chatIds.length,
+          totalUsers: recipients.length,
           successCount,
           failedCount,
           timestamp: new Date(),
@@ -88,7 +110,7 @@ export async function POST(request) {
           type: "complete",
           successCount,
           failedCount,
-          total: chatIds.length,
+          total: recipients.length,
           results,
         };
 

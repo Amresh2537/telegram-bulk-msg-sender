@@ -16,7 +16,9 @@ Production-ready multi-user SaaS platform built with Next.js App Router, MongoDB
 - User registration and login with hashed passwords
 - Protected dashboard route and protected API routes
 - Telegram bot token + message + recipient IDs input
+- Recipients can be chat IDs or mobile numbers
 - Recipient upload from `.txt` or `.csv`
+- Contact mapping manager (mobile number -> chat ID)
 - Bulk message sending with per-recipient status logs
 - Rate limiting delay between messages
 - Live progress updates while sending (`Sending X/Y`)
@@ -117,10 +119,20 @@ Request body:
 {
 	"botToken": "123:ABC",
 	"message": "Hello from campaign",
-	"chatIds": ["123456", "789012"],
+	"recipients": ["123456", "+919876543210"],
 	"delayMs": 700
 }
 ```
+
+If a mobile number is provided, the API resolves it from saved contacts for that user.
+
+### `GET/POST/DELETE /api/contacts`
+
+Protected route for managing mobile number mappings.
+
+- `GET` returns saved contacts
+- `POST` upserts a contact mapping
+- `DELETE` removes a contact mapping by `contactId`
 
 Returns a streaming response (`text/event-stream`) with progress and completion events.
 
