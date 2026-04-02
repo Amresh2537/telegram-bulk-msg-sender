@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
-import { normalizePhoneNumber } from "@/lib/helpers";
 import Contact from "@/models/Contact";
 
 export async function GET() {
@@ -28,13 +27,13 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  const phone = normalizePhoneNumber(body?.phone);
   const chatId = String(body?.chatId || "").trim();
   const name = String(body?.name || "").trim();
+  const legacyPhoneValue = `tg:${chatId}`;
 
-  if (!phone || !chatId) {
+  if (!chatId) {
     return Response.json(
-      { error: "phone and chatId are required." },
+      { error: "chatId is required." },
       { status: 400 }
     );
   }
@@ -42,10 +41,11 @@ export async function POST(request) {
   await connectDB();
 
   await Contact.findOneAndUpdate(
-    { userId: session.user.id, phone },
+    { userId: session.user.id, chatId },
     {
       $set: {
         name,
+        phone: legacyPhoneValue,
         chatId,
       },
     },

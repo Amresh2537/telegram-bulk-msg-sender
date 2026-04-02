@@ -16,8 +16,8 @@ const ContactSchema = new Schema(
     },
     phone: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
     },
     chatId: {
       type: String,
@@ -32,7 +32,7 @@ const ContactSchema = new Schema(
   { versionKey: false }
 );
 
-ContactSchema.index({ userId: 1, phone: 1 }, { unique: true });
+ContactSchema.index({ userId: 1, chatId: 1 }, { unique: true });
 
 const Contact = mongoose.models.Contact || mongoose.model("Contact", ContactSchema);
 

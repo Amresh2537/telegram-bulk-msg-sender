@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
-import { normalizePhoneNumber, parseRecipients } from "@/lib/helpers";
+import { parseRecipients } from "@/lib/helpers";
 
 function parseSseChunk(rawChunk) {
   return rawChunk
@@ -38,11 +38,12 @@ export default function DashboardClient({ user }) {
 
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
+  const [sendSummary, setSendSummary] = useState(null);
   const [progress, setProgress] = useState({ processed: 0, total: 0 });
   const [logs, setLogs] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [contacts, setContacts] = useState([]);
-  const [contactForm, setContactForm] = useState({ name: "", phone: "", chatId: "" });
+  const [contactForm, setContactForm] = useState({ name: "", chatId: "" });
   const [contactError, setContactError] = useState("");
   const [contactSuccess, setContactSuccess] = useState("");
 
@@ -109,6 +110,7 @@ export default function DashboardClient({ user }) {
   async function handleSend(event) {
     event.preventDefault();
     setError("");
+    setSendSummary(null);
     setLogs([]);
 
     if (!botToken.trim() || !message.trim() || parsedRecipients.length === 0) {
@@ -168,6 +170,17 @@ export default function DashboardClient({ user }) {
               processed: eventPayload.total,
               total: eventPayload.total,
             });
+
+            setSendSummary({
+              successCount: eventPayload.successCount || 0,
+              failedCount: eventPayload.failedCount || 0,
+              total: eventPayload.total || 0,
+            });
+
+            if ((eventPayload.failedCount || 0) > 0 && (eventPayload.successCount || 0) === 0) {
+              const firstFailed = (eventPayload.results || []).find((item) => !item.success);
+              setError(firstFailed?.error || "All messages failed.");
+            }
           }
 
           if (eventPayload.type === "error") {
@@ -189,8 +202,8 @@ export default function DashboardClient({ user }) {
     setContactError("");
     setContactSuccess("");
 
-    if (!contactForm.phone.trim() || !contactForm.chatId.trim()) {
-      setContactError("Phone number and chat ID are required.");
+    if (!contactForm.chatId.trim()) {
+      setContactError("Telegram ID is required.");
       return;
     }
 
@@ -200,7 +213,6 @@ export default function DashboardClient({ user }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: contactForm.name,
-          phone: contactForm.phone,
           chatId: contactForm.chatId,
         }),
       });
@@ -211,8 +223,8 @@ export default function DashboardClient({ user }) {
       }
 
       setContacts(data.contacts || []);
-      setContactForm({ name: "", phone: "", chatId: "" });
-      setContactSuccess("Contact saved. Mobile number can now be used in recipients.");
+      setContactForm({ name: "", chatId: "" });
+      setContactSuccess("Contact saved with Telegram ID.");
     } catch (saveError) {
       setContactError(saveError.message || "Failed to save contact");
     }
@@ -303,7 +315,7 @@ export default function DashboardClient({ user }) {
           <header className="card flex items-center justify-between p-4 sm:px-6">
             <div>
               <h1 className="font-heading text-2xl font-semibold tracking-tight">Dashboard</h1>
-              <p className="text-sm text-slate-600">Manage sends by chat ID or mobile number</p>
+              <p className="text-sm text-slate-600">Manage sends by Telegram ID</p>
             </div>
             <button
               className="btn btn-ghost inline-flex h-11 w-11 flex-col items-center justify-center p-0 lg:hidden"
@@ -377,19 +389,15 @@ export default function DashboardClient({ user }) {
 
               <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
                 <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    Recipients (chat IDs or mobile numbers)
-                  </label>
+                  <label className="mb-1 block text-sm font-medium">Recipients (Telegram IDs)</label>
                   <textarea
                     className="input min-h-36"
-                    placeholder={"123456789\n+919876543210\n-1001234567890"}
+                    placeholder={"123456789\n-1001234567890"}
                     value={recipientsInput}
                     onChange={(event) => setRecipientsInput(event.target.value)}
                     required
                   />
-                  <p className="mt-1 text-xs text-slate-500">
-                    Mobile number works when mapped in Contacts section below.
-                  </p>
+                  <p className="mt-1 text-xs text-slate-500">Enter one Telegram chat ID per line or comma.</p>
                 </div>
 
                 <div className="grid gap-3">
@@ -427,7 +435,23 @@ export default function DashboardClient({ user }) {
                 />
               </div>
 
+              {sendSummary ? (
+                <p
+                  className={
+                    sendSummary.failedCount > 0
+                      ? "rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+                      : "rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
+                  }
+                >
+                  Sent: {sendSummary.successCount} of {sendSummary.total}. Failed: {sendSummary.failedCount}.
+                </p>
+              ) : null}
+
               {error ? <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+
+              <p className="text-xs text-slate-500">
+                The bot can only message chats it already has access to. For private users, they must start the bot first.
+              </p>
             </form>
           </section>
 
@@ -480,24 +504,17 @@ export default function DashboardClient({ user }) {
           </section>
 
           <section id="contacts" className="card p-5 sm:p-6">
-            <h2 className="font-heading text-xl font-semibold tracking-tight">Contact Mapping</h2>
+            <h2 className="font-heading text-xl font-semibold tracking-tight">Saved Telegram IDs</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Save mobile number to chat ID mapping. Then you can paste phone numbers in recipients.
+              Save Telegram IDs here so you have a reusable list of contacts.
             </p>
 
-            <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={handleAddContact}>
+            <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]" onSubmit={handleAddContact}>
               <input
                 className="input"
                 placeholder="Name (optional)"
                 value={contactForm.name}
                 onChange={(event) => setContactForm((prev) => ({ ...prev, name: event.target.value }))}
-              />
-              <input
-                className="input"
-                placeholder="+919876543210"
-                value={contactForm.phone}
-                onChange={(event) => setContactForm((prev) => ({ ...prev, phone: event.target.value }))}
-                required
               />
               <input
                 className="input"
@@ -522,15 +539,14 @@ export default function DashboardClient({ user }) {
 
             <div className="mt-4 max-h-80 overflow-y-auto rounded-xl border border-[var(--line)] bg-white">
               {contacts.length === 0 ? (
-                <p className="p-4 text-sm text-slate-500">No mapped contacts yet.</p>
+                <p className="p-4 text-sm text-slate-500">No saved Telegram IDs yet.</p>
               ) : (
                 <ul className="divide-y divide-slate-100">
                   {contacts.map((contact) => (
                     <li className="flex items-center justify-between gap-3 p-3 text-sm" key={contact._id}>
                       <div>
                         <p className="font-semibold text-slate-800">{contact.name || "Unnamed"}</p>
-                        <p className="text-slate-600">{normalizePhoneNumber(contact.phone)}</p>
-                        <p className="text-xs text-slate-500">chat ID: {contact.chatId}</p>
+                        <p className="text-slate-600">Telegram ID: {contact.chatId}</p>
                       </div>
                       <button
                         className="btn btn-ghost"

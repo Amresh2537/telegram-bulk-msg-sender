@@ -2,12 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Campaign from "@/models/Campaign";
-import Contact from "@/models/Contact";
-import {
-  isMobileRecipient,
-  normalizePhoneNumber,
-  parseRecipients,
-} from "@/lib/helpers";
+import { parseRecipients } from "@/lib/helpers";
 import { delay, sendTelegramMessage } from "@/lib/telegram";
 
 const MIN_RATE_DELAY_MS = 300;
@@ -40,11 +35,6 @@ export async function POST(request) {
 
   await connectDB();
 
-  const contacts = await Contact.find({ userId: session.user.id }).lean();
-  const contactMap = new Map(
-    contacts.map((contact) => [normalizePhoneNumber(contact.phone), contact.chatId])
-  );
-
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -56,19 +46,9 @@ export async function POST(request) {
       try {
         for (let index = 0; index < recipients.length; index += 1) {
           const recipient = recipients[index];
-          const normalizedPhone = normalizePhoneNumber(recipient);
-          const shouldResolvePhone = isMobileRecipient(normalizedPhone);
-          const chatId = shouldResolvePhone
-            ? contactMap.get(normalizedPhone)
-            : recipient;
+          const chatId = recipient;
 
           try {
-            if (!chatId) {
-              throw new Error(
-                `No mapped chat ID found for ${normalizedPhone}. Add this number in Contacts.`
-              );
-            }
-
             await sendTelegramMessage(botToken, chatId, message);
             successCount += 1;
             results.push({ recipient, chatId, success: true, error: null });

@@ -31,26 +31,3 @@ export function parseRecipients(rawRecipients) {
 
   return [];
 }
-
-export function normalizePhoneNumber(rawPhone) {
-  const value = String(rawPhone || "").trim();
-  if (!value) {
-    return "";
-  }
-
-  const compact = value.replace(/[\s()-]/g, "");
-
-  if (compact.startsWith("00")) {
-    return `+${compact.slice(2)}`;
-  }
-
-  if (compact.startsWith("+")) {
-    return `+${compact.slice(1).replace(/\D/g, "")}`;
-  }
-
-  return `+${compact.replace(/\D/g, "")}`;
-}
-
-export function isMobileRecipient(value) {
-  return /^\+\d{8,15}$/.test(String(value || "").trim());
-}
