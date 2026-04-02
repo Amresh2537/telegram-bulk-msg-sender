@@ -19,6 +19,11 @@ Production-ready multi-user SaaS platform built with Next.js App Router, MongoDB
 - Recipients use Telegram chat IDs only
 - Recipient upload from `.txt` or `.csv`
 - Saved Telegram ID contact manager
+- Advanced campaign composer (text, photo, video, document)
+- Caption support for media campaigns
+- HTML / MarkdownV2 formatting mode selection
+- Link preview toggle for text campaigns
+- One-click recipient loading from saved contacts
 - Bulk message sending with per-recipient status logs
 - Rate limiting delay between messages
 - Live progress updates while sending (`Sending X/Y`)

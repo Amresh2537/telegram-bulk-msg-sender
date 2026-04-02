@@ -33,6 +33,10 @@ export default function DashboardClient({ user }) {
 
   const [botToken, setBotToken] = useState("");
   const [message, setMessage] = useState("");
+  const [contentType, setContentType] = useState("text");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [parseMode, setParseMode] = useState("HTML");
+  const [disableLinkPreview, setDisableLinkPreview] = useState(false);
   const [recipientsInput, setRecipientsInput] = useState("");
   const [delayMs, setDelayMs] = useState(700);
 
@@ -59,6 +63,11 @@ export default function DashboardClient({ user }) {
   const parsedRecipients = useMemo(
     () => parseRecipients(recipientsInput),
     [recipientsInput]
+  );
+
+  const savedRecipientIds = useMemo(
+    () => contacts.map((contact) => String(contact.chatId || "").trim()).filter(Boolean),
+    [contacts]
   );
 
   const campaignStats = useMemo(() => {
@@ -113,8 +122,18 @@ export default function DashboardClient({ user }) {
     setSendSummary(null);
     setLogs([]);
 
-    if (!botToken.trim() || !message.trim() || parsedRecipients.length === 0) {
-      setError("Bot token, message, and at least one recipient are required.");
+    if (!botToken.trim() || parsedRecipients.length === 0) {
+      setError("Bot token and at least one recipient are required.");
+      return;
+    }
+
+    if (contentType === "text" && !message.trim()) {
+      setError("Message text is required for text campaigns.");
+      return;
+    }
+
+    if (contentType !== "text" && !mediaUrl.trim()) {
+      setError("Media URL is required for photo, video, and document campaigns.");
       return;
     }
 
@@ -128,6 +147,10 @@ export default function DashboardClient({ user }) {
         body: JSON.stringify({
           botToken,
           message,
+          contentType,
+          mediaUrl,
+          parseMode,
+          disableLinkPreview,
           recipients: parsedRecipients,
           delayMs,
         }),
@@ -257,6 +280,20 @@ export default function DashboardClient({ user }) {
     setSidebarOpen(false);
   }
 
+  function loadSavedRecipients() {
+    if (savedRecipientIds.length === 0) {
+      setError("No saved Telegram IDs found in Contacts.");
+      return;
+    }
+
+    setError("");
+    setRecipientsInput(savedRecipientIds.join("\n"));
+  }
+
+  function clearRecipients() {
+    setRecipientsInput("");
+  }
+
   return (
     <div className="dashboard-bg min-h-screen p-4 sm:p-6">
       <div className="mx-auto flex max-w-7xl gap-5">
@@ -364,6 +401,44 @@ export default function DashboardClient({ user }) {
             </div>
 
             <form className="mt-5 grid gap-4" onSubmit={handleSend}>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Content Type</label>
+                  <select
+                    className="input"
+                    value={contentType}
+                    onChange={(event) => setContentType(event.target.value)}
+                  >
+                    <option value="text">Text</option>
+                    <option value="photo">Image</option>
+                    <option value="video">Video</option>
+                    <option value="document">Document</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Format Mode</label>
+                  <select
+                    className="input"
+                    value={parseMode}
+                    onChange={(event) => setParseMode(event.target.value)}
+                  >
+                    <option value="HTML">HTML</option>
+                    <option value="MarkdownV2">MarkdownV2</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-sm font-medium">Message Options</label>
+                  <label className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={disableLinkPreview}
+                      onChange={(event) => setDisableLinkPreview(event.target.checked)}
+                    />
+                    Disable link preview in text messages
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium">Telegram Bot Token</label>
                 <input
@@ -376,20 +451,52 @@ export default function DashboardClient({ user }) {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium">Message Text</label>
+                <label className="mb-1 block text-sm font-medium">
+                  {contentType === "text" ? "Message Text" : "Caption (optional)"}
+                </label>
                 <textarea
                   className="input min-h-28"
-                  placeholder="Write your campaign message"
+                  placeholder={contentType === "text" ? "Write your campaign message" : "Optional media caption"}
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
-                  required
+                  required={contentType === "text"}
                 />
                 <p className="mt-1 text-xs text-slate-500">{message.length}/4096 characters</p>
               </div>
 
+              {contentType !== "text" ? (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Media URL or Telegram file_id</label>
+                  <input
+                    className="input"
+                    placeholder={
+                      contentType === "photo"
+                        ? "https://.../image.jpg or AgAC..."
+                        : contentType === "video"
+                          ? "https://.../video.mp4 or BAAC..."
+                          : "https://.../file.pdf or BQAC..."
+                    }
+                    value={mediaUrl}
+                    onChange={(event) => setMediaUrl(event.target.value)}
+                    required
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Telegram accepts public URLs or existing file_id values for media sends.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
                 <div>
                   <label className="mb-1 block text-sm font-medium">Recipients (Telegram IDs)</label>
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    <button className="btn btn-ghost" type="button" onClick={loadSavedRecipients}>
+                      Use Saved IDs ({savedRecipientIds.length})
+                    </button>
+                    <button className="btn btn-ghost" type="button" onClick={clearRecipients}>
+                      Clear Recipients
+                    </button>
+                  </div>
                   <textarea
                     className="input min-h-36"
                     placeholder={"123456789\n-1001234567890"}
@@ -447,6 +554,15 @@ export default function DashboardClient({ user }) {
                 </p>
               ) : null}
 
+              <div className="grid gap-2 rounded-xl border border-[var(--line)] bg-white p-3 text-sm text-slate-600 sm:grid-cols-2">
+                <p>
+                  <span className="font-semibold text-slate-800">Mode:</span> {contentType}
+                </p>
+                <p>
+                  <span className="font-semibold text-slate-800">Formatting:</span> {parseMode}
+                </p>
+              </div>
+
               {error ? <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
 
               <p className="text-xs text-slate-500">
@@ -488,7 +604,17 @@ export default function DashboardClient({ user }) {
                   <ul className="divide-y divide-slate-100">
                     {campaigns.map((campaign) => (
                       <li className="p-3 text-sm" key={campaign._id}>
-                        <p className="line-clamp-2 font-medium text-slate-800">{campaign.message}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="badge">{campaign.contentType || "text"}</p>
+                          {campaign.mediaUrl ? <p className="badge">media</p> : null}
+                          <p className="badge">{campaign.parseMode || "HTML"}</p>
+                        </div>
+                        <p className="mt-2 line-clamp-2 font-medium text-slate-800">
+                          {campaign.message || "Media campaign without caption"}
+                        </p>
+                        {campaign.mediaUrl ? (
+                          <p className="line-clamp-1 text-xs text-slate-500">{campaign.mediaUrl}</p>
+                        ) : null}
                         <p className="mt-1 text-slate-600">Total: {campaign.totalUsers}</p>
                         <p className="text-emerald-600">Success: {campaign.successCount}</p>
                         <p className="text-red-600">Failed: {campaign.failedCount}</p>

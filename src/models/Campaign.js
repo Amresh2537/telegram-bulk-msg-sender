@@ -13,6 +13,25 @@ const CampaignSchema = new Schema(
       required: true,
       maxlength: 4096,
     },
+    contentType: {
+      type: String,
+      enum: ["text", "photo", "video", "document"],
+      default: "text",
+    },
+    mediaUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    parseMode: {
+      type: String,
+      enum: ["HTML", "MarkdownV2"],
+      default: "HTML",
+    },
+    disableLinkPreview: {
+      type: Boolean,
+      default: false,
+    },
     totalUsers: {
       type: Number,
       required: true,

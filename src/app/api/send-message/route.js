@@ -21,14 +21,34 @@ export async function POST(request) {
 
   const body = await request.json();
   const botToken = body?.botToken?.trim();
-  const message = body?.message?.trim();
+  const message = String(body?.message || "").trim();
+  const contentType = ["text", "photo", "video", "document"].includes(body?.contentType)
+    ? body.contentType
+    : "text";
+  const mediaUrl = String(body?.mediaUrl || "").trim();
+  const parseMode = body?.parseMode === "MarkdownV2" ? "MarkdownV2" : "HTML";
+  const disableLinkPreview = Boolean(body?.disableLinkPreview);
   const recipients = parseRecipients(body?.recipients ?? body?.chatIds);
   const requestedDelay = Number(body?.delayMs) || 700;
   const delayMs = Math.min(Math.max(requestedDelay, MIN_RATE_DELAY_MS), MAX_RATE_DELAY_MS);
 
-  if (!botToken || !message || recipients.length === 0) {
+  if (!botToken || recipients.length === 0) {
     return Response.json(
-      { error: "botToken, message, and recipients are required." },
+      { error: "botToken and recipients are required." },
+      { status: 400 }
+    );
+  }
+
+  if (contentType === "text" && !message) {
+    return Response.json(
+      { error: "message is required for text campaigns." },
+      { status: 400 }
+    );
+  }
+
+  if (contentType !== "text" && !mediaUrl) {
+    return Response.json(
+      { error: "mediaUrl is required for photo, video, and document campaigns." },
       { status: 400 }
     );
   }
@@ -49,7 +69,19 @@ export async function POST(request) {
           const chatId = recipient;
 
           try {
-            await sendTelegramMessage(botToken, chatId, message);
+            await sendTelegramMessage(
+              botToken,
+              chatId,
+              {
+                contentType,
+                text: message,
+                mediaUrl,
+              },
+              {
+                parseMode,
+                disableLinkPreview,
+              }
+            );
             successCount += 1;
             results.push({ recipient, chatId, success: true, error: null });
           } catch (error) {
@@ -80,6 +112,10 @@ export async function POST(request) {
         await Campaign.create({
           userId: session.user.id,
           message,
+          contentType,
+          mediaUrl,
+          parseMode,
+          disableLinkPreview,
           totalUsers: recipients.length,
           successCount,
           failedCount,
